@@ -1,0 +1,750 @@
+---
+title: "FINAL PROJECT"
+subtitle: "MATH105 Introduction to Statistics"
+author: "Group 6"
+output:
+  html_document: 
+      number_sections: true
+  word_document:    
+      number_sections: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_knit$set(root.dir = "~/Final")
+```
+# Motivation 
+
+In this project on hypothesis testing, we focus on the Southern Cone, including Argentina, Chile, and Uruguay. Although this subregion is considered one of the most socio-economically advanced in Latin America, inequalities remain persistent. Issues such as unequal income distribution, fertility rate, and disproportionate life standards continue to affect the quality of life of many citizens. These inequalities provide an important context for examining the relationships between these socioeconomic patterns through hypothesis testing and statistical analysis.
+
+
+## Hypothesis test for independence between two categorical variables   
+
+### Data set up
+
+#### Install package and resources
+
+```{r}
+# load libraries
+library(tidyverse)
+library(infer)
+```
+
+#### Read data file
+
+```{r}
+# Importing files
+
+world <- read.csv("world_data.csv")
+head(world,10)
+```
+
+```{r}
+# Modify the world_data so that we only see the data of our interested countries and add a new column to modify the classifications in the babies_per_woman variable
+
+world_selected <- world %>%
+  filter(country %in% c("Argentina", "Chile", "Uruguay")) %>%
+  mutate(fertility_rate = ifelse(babies_per_woman>3, "Big", "Normal"))
+```
+
+#### Data explanation
+
+babies_per_woman: The average number of children a woman is expected to have over her lifetime, assuming the fertility rates of a given year remain constant.
+
+Income_level: The average level of income represents the entire country.
+
+fertility_rate: A categorical variable derived from babies_per_woman, which splits observations into two groups: “Big” (more than three children per woman) and “Normal” (three or fewer children per woman)
+
+### Hypothesis testing
+
+####  Motivation 
+
+Previous studies show an inverse relationship between income and fertility in developing nations, where higher income is associated with lower fertility. In the Southern Cone, this relationship is further reflected in a clear polarization in the timing of first births. On one hand, disadvantaged groups tend to have higher rates of early childbearing, as “social inequality favors high early fertility rate in a low fertility setting” (Becquet et al., 2022). On the other hand, more advantaged women often delay childbirth to prioritize their education, career, and income.
+
+These patterns highlight the close relationship between social inequality, income level, and fertility. Therefore, based on both existing literature and our prior experience with data analysis in this region, we selected the Southern Cone to examine the relationship between these two chosen categorical variables.
+
+
+#### Hypothesis testing in each country
+
+##### Chile
+
+```{r}
+# Selecting only Chile
+chi_selected <- world_selected %>%
+  filter(country == "Chile")
+```
+
+###### Data descriptions
+
+While fertility is measured as the Total Fertility Rate (TFR), including the average number of children a woman would have during her reproductive years, income levels are classified into four categories based on daily income:
+
+- Level 1: Extreme poverty (typically less than $2/day)
+
+- Level 2: Low income ($2-$8/day)
+
+- Level 3: Middle income ($8-$32/day)
+
+- Level 4: High income (greater than $32/day)
+
+Together, the two variables managed to bring a glimpse into the socio-economic situations of the nations in Southern Cone.
+
+
+```{r}
+
+# Examining the descriptive statistics between Chile's income level and fertility rates
+
+O_t1 <- table(chi_selected$income_level, chi_selected$fertility_rate)
+O_t1
+
+# Proportions within each income level
+prop.table(O_t1, margin = 1)
+
+# Mean babies per woman by income level
+chi_selected %>%
+  group_by(income_level) %>%
+  summarise(mean_babies = mean(babies_per_woman),
+            n = n())
+
+# Bar plot of fertility group by income level
+ggplot(chi_selected, aes(x = income_level, fill = fertility_rate)) +
+  geom_bar(position = "fill") +
+  labs(title = "Proportion of Fertility Group by Income Level for Chile",
+       x = "Income Level", y = "Proportion", fill = "Fertility Rate") +
+  theme_minimal()
+```
+
+The chart shows a clear relationship between income level and fertility patterns in Chile. In the lowest-income groups, Levels 1 and 2, all observations fall into the “big” fertility category, suggesting larger family sizes among poorer households. At Level 3, the pattern begins to change, with “normal” fertility becoming more common. By Level 4, all observations are classified as “normal” fertility, indicating lower fertility rates among wealthier groups. Overall, the chart suggests an inverse relationship between income and fertility, with higher income associated with smaller family sizes.
+
+
+###### Hypothesis
+
+H~0~: Income level and fertility group are independent
+
+H~A~: Income level and fertility group are dependent
+
+The chosen significance level is 5%. The 5% significance level is chosen because it offers a widely accepted compromise between caution and sensitivity in hypothesis testing.
+
+```{r}
+
+# Specifying the null hypothesis for Chile
+null_hypothesis1 <- chi_selected %>%
+  specify(income_level ~ fertility_rate) %>%
+  hypothesize(null = "independence")
+
+
+```
+
+###### Test statistic
+
+We decided to use the Chi-square test of independence (Denoted as X^2) because it is specifically designed to assess the association between two categorical variables. In our case, both income levels and fertility rates are categorized into distinct levels (eg. income level 1,2,3,4 and big or normal fertility).
+
+Formula:
+$$
+\chi^2 = \sum_{i=1}^{r} \sum_{j=1}^{c} \frac{(O_{ij} - E_{ij})^2}{E_{ij}}
+$$
+
+```{r}
+expectedIndependent = function(X) {
+     n = sum(X)
+     p = rowSums(X)/sum(X)
+     q = colSums(X)/sum(X)
+     return(p %o% q * n) # outer product creates table
+}
+
+ # Calculating expected independent for Chile
+(E_t1 =expectedIndependent(table(chi_selected$income_level, chi_selected$fertility_rate)))
+
+```
+
+```{r}
+
+ # Observed_stat for Chile
+ (observed_stat1 =sum((O_t1-E_t1)^2/E_t1))
+```
+
+###### Null distribution
+
+Under the null hypothesis, income level and fertility group are independent. To create the null hypothesis, we repeatedly randomize one variable while keeping the marginal totals fixed, then recalculate the Chi-square statistic for each repetition. Repeating this process 100,000 times produces a distribution of Chi-square values expected by chance alone.
+
+
+```{r}
+ # Generating the null distribution for Chile
+null_distribution1 =null_hypothesis1 %>%
+generate(reps = 100000, type = "permute") %>%
+  calculate(stat = "Chisq")
+
+hist(null_distribution1$stat)
+```
+
+
+The null distribution of the Chi-square statistic is strongly right-skewed and begins at 0, since Chi-square values cannot be negative. Most stimulated statistics are concentrated between 0 and 5, showing that small differences between observed and expected counts are most common when the variables are independent. As the statistics increased, the frequency declined rapidly, creating a long right tail. Values above 10 occur rarely under the null hypothesis. Therefore, a very large observed Chi-square statistic would be unusual and provide evidence against the assumption of independence.
+
+
+###### Conclusion
+
+```{r}
+ # Calculating p value for Chile
+(p_value <- null_distribution1 %>%
+  get_p_value(obs_stat = observed_stat1, direction =  "greater"))
+
+ null_distribution1%>% visualize()+ shade_p_value(obs_stat=observed_stat1, direction= "greater")
+
+```
+
+The histogram shows the null distribution concentrated near zero, while the red line (observed statistic) is far to the right. The p-value is the area of the histogram to the right of this line. At the 5% significance level, we reject the null hypothesis because the p-value is less than the significance level (approximately 0). There is strong statistical evidence to conclude that income level and fertility groups are associated. In other words, the higher people's income, the greater the chance they have of having 3 or fewer children.
+
+
+
+##### Uruguay
+
+```{r}
+# Selecting only Argentina
+uru_selected <- world_selected %>%
+  filter(country == "Uruguay")
+```
+
+###### Data descriptions
+
+
+```{r}
+# Examining the descriptive statistics between Uruguay's income level and fertility rates
+
+O_t2 <- table(uru_selected$income_level, uru_selected$fertility_rate)
+O_t2
+
+# Proportions within each income level
+prop.table(O_t2, margin = 1)
+
+# Mean babies per woman by income level
+uru_selected %>%
+  group_by(income_level) %>%
+  summarise(mean_babies = mean(babies_per_woman),
+            n = n())
+
+# Bar plot of fertility group by income level
+ggplot(uru_selected, aes(x = income_level, fill = fertility_rate)) +
+  geom_bar(position = "fill") +
+  labs(title = "Proportion of Fertility Group by Income Level for Uruguay",
+       x = "Income Level", y = "Proportion", fill = "Fertility Rate") +
+  theme_minimal()
+```
+
+In Uruguay, the chart suggests a clear relationship between income and fertility rate. At the lowest income group (level 2), “big” fertility dominates, showing higher fertility rates among lower-income households. As income increases to level 3, the distribution shifts, with “normal” fertility becoming more common. By level 4, fertility is almost entirely “normal”, with very little high fertility observed. Overall, the pattern in this chart hints that higher income levels are associated with lower fertility, suggesting a negative relationship between income and fertility intensity in Uruguay households. 
+
+
+###### Hypothesis
+
+H~0~: Income level and fertility group are independent
+
+H~A~: Income level and fertility group are dependent
+
+The chosen significance level is 5%. The 5% significance level is chosen because it offers a widely accepted compromise between caution and sensitivity in hypothesis testing.
+
+```{r}
+ # Specifying the null hypothesis for Uruguay
+null_hypothesis2 <- uru_selected %>%
+  specify(income_level ~ fertility_rate) %>%
+  hypothesize(null = "independence")
+```
+
+
+###### Test statistic
+
+We apply the same formula used above
+
+```{r}
+# Calculating expected independent for Uruguay
+(E_t2 =expectedIndependent(table(uru_selected$income_level, uru_selected$fertility_rate)))
+```
+```{r} 
+ # Observed_stat for Uruguay
+(observed_stat2 =sum((O_t2-E_t2)^2/E_t2))
+```
+
+###### Null distribution
+
+Under the null hypothesis, income level and fertility group are independent. To create the null hypothesis, we repeatedly randomize one variable while keeping the marginal totals fixed, then recalculate the Chi-square statistic for each repetition. Repeating this process 100,000 times produces a distribution of Chi-square values expected by chance alone.
+
+
+```{r}
+ # Generating the null distribution for Uruguay
+null_distribution2 =null_hypothesis2 %>%
+generate(reps = 100000, type = "permute") %>%
+  calculate(stat = "Chisq")
+
+hist(null_distribution2$stat)
+```
+
+The histogram shows the null distribution of the test statistic under the assumption of independence. It is heavily right-skewed, meaning most stimulated Chi-square values are very small, clustering near zero, while large values are rare. As a result, values far to the right tail represent unusual outcomes under independence and may provide evidence against the null hypothesis.
+
+
+###### Conclusion
+```{r}
+ # Calculating p value for Uruguay
+(p_value <- null_distribution2 %>%
+  get_p_value(obs_stat = observed_stat2, direction =  "greater"))
+ 
+null_distribution2%>% visualize()+ shade_p_value(obs_stat=observed_stat2, direction= "greater")
+
+```
+
+The p-value is reported close to 0, which is less than the chosen p-value (5%), so we reject the null hypothesis (H₀).
+
+
+##### Argentina 
+
+```{r}
+# Selecting only Argentina
+arg_selected <- world_selected %>%
+  filter(country == "Argentina")
+```
+
+
+###### Data descriptions
+
+```{r}
+
+
+
+# Examining the descriptive statistics of Argentina
+
+O_t3 <- table(arg_selected$income_level, arg_selected$fertility_rate)
+O_t3
+
+# Proportions within each income level
+prop.table(O_t3, margin = 1)
+
+# Mean babies per woman by income level
+arg_selected %>%
+  group_by(income_level) %>%
+  summarise(mean_babies = mean(babies_per_woman),
+            n = n())
+
+# Bar plot of fertility group by income level
+ggplot(arg_selected, aes(x = income_level, fill = fertility_rate)) +
+  geom_bar(position = "fill") +
+  labs(title = "Proportion of Fertility Group by Income Level for Argentina",
+       x = "Income Level", y = "Proportion", fill = "Fertility Rate") +
+  theme_minimal()
+```
+
+The chart shows a clear shift in fertility patterns across income levels in Argentina. At income level 2, almost all households fall into the “big” fertility group, suggesting that higher fertility is concentrated among lower-income households. At level 3, the patterns become mixed, with a noticeable split between “big” and “normal” fertility. The population is mostly in the “normal” fertility group by level 4, indicating lower fertility among higher-income individuals. To conclude, this chart suggests a strong negative relationship between income level and fertility rate in Argentine families: as income rises, fertility tends to decrease and stabilize at a lower level.
+
+
+###### Hypothesis
+
+H~0~: Income level and fertility group are independent
+
+H~A~: Income level and fertility group are dependent
+
+The chosen significance level is 5%. The 5% significance level is chosen because it offers a widely accepted compromise between caution and sensitivity in hypothesis testing.
+
+```{r}
+ # Specifying the null hypothesis for Argentina
+null_hypothesis3 <- arg_selected %>%
+  specify(income_level ~ fertility_rate) %>%
+  hypothesize(null = "independence")
+```
+
+######Test statistic
+
+We apply the same formula used above
+
+```{r}
+ # Calculating expected independent for Argentina
+(E_t3 =expectedIndependent(table(arg_selected$income_level, arg_selected$fertility_rate)))
+```
+
+```{r} 
+ # Observed_stat for Argentina
+(observed_stat3 =sum((O_t3-E_t3)^2/E_t3))
+```
+
+####### Null distribution
+
+Under the null hypothesis, income level and fertility group are independent. To create the null hypothesis, we repeatedly randomize one variable while keeping the marginal totals fixed, then recalculate the Chi-square statistic for each repetition. Repeating this process 100,000 times produces a distribution of Chi-square values expected by chance alone.
+
+
+```{r}
+ # Generating the null distribution for Argentina
+null_distribution3 =null_hypothesis3 %>%
+generate(reps = 100000, type = "permute") %>%
+  calculate(stat = "Chisq")
+
+hist(null_distribution3$stat)
+```
+
+The null hypothesis is clearly right-skewed, with most stimulated statistic values concentrated between 0 and 3. Frequencies drop sharply as values increase, forming a long tail that extends beyond 20, indicating that large statistical values are rare under the null hypothesis. This asymmetry pattern suggests the distribution deviates from normality; consequently, an observed statistic located in the upper tail would be considered outlying and may provide evidence to reject the null hypothesis.
+
+
+###### Conclusion
+```{r}
+ # Calculating p value for Argentina
+(p_value <- null_distribution3 %>%
+  get_p_value(obs_stat = observed_stat3, direction =  "greater"))
+
+ null_distribution3%>% visualize()+ shade_p_value(obs_stat=observed_stat3, direction= "greater")
+
+```
+
+The observed statistic is far to the right of the red line. The p-value is the proportion of values beyond this line, which is approximately 0, meaning the result is extremely rare under the null hypothesis. Despite simulation limitations, it is clearly very small and well below the standard value (5%). Therefore, we reject the null hypothesis. 
+
+## Hypothesis test for dependence between a numerical and a categorical variable
+
+### Data set up
+
+#### Install package and resources
+
+```{r}
+# load libraries
+library(tidyverse)
+library(infer)
+```
+
+#### Read data file
+
+```{r}
+# Importing files
+
+world <- read.csv("world_data.csv")
+head(world, 10)
+```
+
+```{r}
+# Modify the world_data so that we only see the data of our interested countries
+# We select Uruguay, Chile, and Argentina from the Southern Cone
+
+world_selected <- world %>%
+  filter(country %in% c("Uruguay", "Chile", "Argentina")) 
+```
+
+#### Data explanation
+
+**life_expectancy_at_birth**: The average number of years a newborn is expected to live if the current mortality patterns at the time of birth remain constant throughout their life. This is a numerical (continuous) variable.
+
+**income_level**: The average level of income representing the entire country, classified into four categories based on average daily income per person:
+
+- Level 1: Extreme poverty (less than ~$2/day)
+- Level 2: Low income (~$2–$8/day)
+- Level 3: Middle income (~$8–$32/day)
+- Level 4: High income (greater than ~$32/day)
+
+
+### Hypothesis testing
+
+#### Motivation
+
+In this section, we continue to test for a dependence between life expectancy at birth and income level across three Southern Cone countries: Uruguay, Chile, and Argentina. These three countries form one of the most socio-economically developed subregions in Latin America, yet significant disparities in income and health outcomes persist across their historical records, making them a coherent and meaningful group for comparison.
+
+Life expectancy is widely regarded as one of the most comprehensive indicators of population health and overall living standards (Preston, 1975). Higher income levels are generally associated with better access to healthcare, nutrition, and sanitation, all of which directly affect longevity. As nations progress through income levels, we expect to see corresponding improvements in life expectancy, consistent with patterns observed in the broader development economics literature.
+
+By examining Uruguay, Chile, and Argentina, which collectively span a wide range of income levels over the historical record, we can investigate whether higher income levels are systematically associated with longer life expectancy, and whether this relationship holds consistently across each of the three countries independently.
+
+
+
+#### Hypothesis testing in each country
+
+##### Chile
+
+```{r}
+# Selecting only Chile
+chi_selected <- world_selected %>%
+  filter(country == "Chile")
+```
+
+###### Data descriptions
+
+```{r}
+# Examining the descriptive statistics between Chile's income level and life expectancy
+
+# Observed counts per income level
+table(chi_selected$income_level)
+
+# Summary statistics of life expectancy by income level
+chi_selected %>%
+  group_by(income_level) %>%
+  summarise(
+    n = n(),
+    mean_life_exp = mean(life_expectancy_at_birth),
+    sd_life_exp   = sd(life_expectancy_at_birth),
+    min_life_exp  = min(life_expectancy_at_birth),
+    max_life_exp  = max(life_expectancy_at_birth)
+  )
+
+# Boxplot of life expectancy by income level
+ggplot(chi_selected, aes(x = income_level, y = life_expectancy_at_birth, fill = income_level)) +
+  geom_boxplot() +
+  theme_minimal()
+```
+
+The boxplot shows a clear upward trend in life expectancy as income level increases in Chile. Level 1 is associated with the lowest median life expectancy, while Level 4 is associated with the highest. The increasing medians and generally non-overlapping interquartile ranges suggest that income level may be positively correlated to life expectancy. In other words, according to the boxplot the higher the income level, the longer life is expected to span
+
+
+
+###### Hypothesis
+
+H~0~: The mean life expectancy at birth is the same across all income levels (life expectancy and income level are independent).
+
+H~A~: At least one income level group has a different mean life expectancy at birth (life expectancy and income level are dependent).
+
+The chosen significance level is 5%. The 5% significance level is chosen because it offers a widely accepted compromise between caution and sensitivity in hypothesis testing.
+
+```{r}
+# Specifying the null hypothesis for Chile
+null_hypothesis1 <- chi_selected %>%
+  specify(life_expectancy_at_birth ~ income_level) %>%
+  hypothesize(null = "independence")
+```
+
+###### Test statistic
+
+We use the **F-statistic** from a one-way ANOVA framework as our test statistic. The F-statistic measures the ratio of variance *between* income level groups to the variance *within* groups. A large F-statistic indicates that the group means differ more than would be expected by chance alone if income level had no effect on life expectancy.
+
+The F-statistic formula is:
+
+$$
+F = \frac{V_B}{V_W}
+$$
+with each component being:
+- **Variance between groups** ($V_B$):
+
+$$
+V_B = \frac{\sum_{j=1}^{k} n_j (\bar{x}_j - \bar{x}_{grand})^2}{k - 1},
+$$
+
+where $n_j$ is the number of elements of group $j$ and
+
+$$
+\bar{x}_j = \frac{1}{n_j} \sum_{i=1}^{n_j} x_{ij}.
+$$
+
+- **Variance within group** ($V_W$):
+
+$$
+V_W = \frac{\sum_{j=1}^{k} \sum_{i=1}^{n_j} (x_{ij} - \bar{x}_j)^2}{n - k}.
+$$
+
+
+
+```{r}
+observed_stat1 <- chi_selected %>%
+    specify(life_expectancy_at_birth ~ income_level)  %>%
+  calculate(stat = "F")
+```
+
+###### Null distribution
+
+Under the null hypothesis, income level and life expectancy are independent. To build the null distribution, we repeatedly permute the income_level labels while keeping the life expectancy values fixed, and recalculate the F-statistic for each permutation. Repeating this 1,000 times generates a distribution of F-values that would occur purely by chance.
+
+```{r}
+null_distribution1 <- null_hypothesis1 %>%
+   generate(reps = 1000, type = "permute") %>%
+   calculate(stat = "F")
+null_distribution1
+```
+
+```{r}
+hist(null_distribution1$stat)
+```
+
+The null distribution of the F-statistic is right-skewed and begins at 0 since F-values cannot be negative. Under the null hypothesis of independence, most permuted F-statistics are concentrated near 0, reflecting the small between-group differences expected by chance. The distribution has a long right tail, indicating that large F-values are rare when income level has no effect. 
+
+###### Conclusion
+
+```{r}
+null_distribution1%>% visualize()+ shade_p_value(obs_stat=observed_stat1, direction= "greater") + scale_x_log10()
+```
+
+At the 5% significance level, we compare the p-value to significance level of 0.05. As we can see, the red vertical line for our observed statistics stands way past the null distribution, thus making it possible to reject the null hypothesis. In other words, this means that there is a strong dependency between income level and life expectancy in Chile.
+
+
+##### Uruguay
+
+```{r}
+# Selecting only Uruguay
+uru_selected <- world_selected %>%
+  filter(country == "Uruguay")
+```
+
+###### Data descriptions
+
+```{r}
+# Examining the descriptive statistics between Uruguay's income level and life expectancy
+
+# Observed counts per income level
+table(uru_selected$income_level)
+
+# Summary statistics of life expectancy by income level
+uru_selected %>%
+  group_by(income_level) %>%
+  summarise(
+    n = n(),
+    mean_life_exp = mean(life_expectancy_at_birth),
+    sd_life_exp   = sd(life_expectancy_at_birth),
+    min_life_exp  = min(life_expectancy_at_birth),
+    max_life_exp  = max(life_expectancy_at_birth)
+  )
+
+# Boxplot of life expectancy by income level
+ggplot(uru_selected, aes(x = income_level, y = life_expectancy_at_birth, fill = income_level)) +
+  geom_boxplot() +
+  theme_minimal()
+```
+
+The boxplot for Uruguay shows a consistent positive relationship between income level and life expectancy. Each successive income level corresponds to a higher median life expectancy, and the interquartile ranges are largely non-overlapping. This pattern provides preliminary descriptive evidence that higher income levels are associated with longer life expectancy in Uruguay.
+
+###### Hypothesis
+
+H~0~: The mean life expectancy at birth is the same across all income levels (life expectancy and income level are independent).
+
+H~A~: At least one income level group has a different mean life expectancy at birth (life expectancy and income level are dependent).
+
+The chosen significance level is 5%.
+
+```{r}
+# Specifying the null hypothesis for Uruguay
+null_hypothesis2 <- uru_selected %>%
+  specify(life_expectancy_at_birth ~ income_level) %>%
+  hypothesize(null = "independence")
+```
+
+###### Test statistic
+
+We use the same F-statistic from the one-way ANOVA framework as described above.
+
+```{r}
+observed_stat2 <- uru_selected %>%
+    specify(life_expectancy_at_birth ~ income_level)  %>%
+  calculate(stat = "F")
+```
+
+###### Null distribution
+
+Under the null hypothesis, income level and life expectancy are independent. We generate the null distribution through 1,000 permutations, calculating the F-statistic each time.
+
+```{r}
+null_distribution2 <- null_hypothesis2 %>%
+   generate(reps = 1000, type = "permute") %>%
+   calculate(stat = "F")
+null_distribution2
+```
+
+```{r}
+hist(null_distribution2$stat)
+```
+
+The null distribution for Uruguay is also right-skewed, with the bulk of permuted F-statistics clustering close to zero. The long right tail by the null distribution reflects that large F-values are uncommon under independence. 
+
+###### Conclusion
+
+```{r}
+# Calculating p-value for Uruguay
+null_distribution2%>% visualize()+ shade_p_value(obs_stat=observed_stat2, direction= "greater") + scale_x_log10()
+```
+
+At the 5% significance level, we compare the p-value to 0.05. As we can see, the red vertical line for our observed statistics stands way past the null distribution, thus making it possible to reject the null hypothesis. In other words, this means that there is a strong dependency between income level and life expectancy in Uruguay.
+
+
+##### Argentina
+
+```{r}
+# Selecting only Argentina
+arg_selected <- world_selected %>%
+  filter(country == "Argentina")
+```
+
+###### Data descriptions
+
+```{r}
+# Examining the descriptive statistics between Argentina's income level and life expectancy
+
+# Observed counts per income level
+table(arg_selected$income_level)
+
+# Summary statistics of life expectancy by income level
+arg_selected %>%
+  group_by(income_level) %>%
+  summarise(
+    n = n(),
+    mean_life_exp = mean(life_expectancy_at_birth),
+    sd_life_exp   = sd(life_expectancy_at_birth),
+    min_life_exp  = min(life_expectancy_at_birth),
+    max_life_exp  = max(life_expectancy_at_birth)
+  )
+
+# Boxplot of life expectancy by income level
+ggplot(arg_selected, aes(x = income_level, y = life_expectancy_at_birth, fill = income_level)) +
+  geom_boxplot() +
+  theme_minimal()
+```
+
+Argentina’s boxplot similarly shows an upward gradient in life expectancy across income levels. The median life expectancy rises progressively from Level 1 to Level 4, with limited overlap between groups. This descriptive pattern suggests that income level is positively associated with life expectancy in Argentina. In other words, the higher the income, the higher the life expectancy.
+
+###### Hypothesis
+
+H~0~: The mean life expectancy at birth is the same across all income levels (life expectancy and income level are independent).
+
+H~A~: At least one income level group has a different mean life expectancy at birth (life expectancy and income level are dependent).
+
+The chosen significance level is 5%.
+
+```{r}
+# Specifying the null hypothesis for Argentina
+null_hypothesis3 <- arg_selected %>%
+  specify(life_expectancy_at_birth ~ income_level) %>%
+  hypothesize(null = "independence")
+```
+
+###### Test statistic
+
+We use the same F-statistic from the one-way ANOVA framework as described above.
+
+```{r}
+observed_stat3 <- arg_selected %>%
+    specify(life_expectancy_at_birth ~ income_level)  %>%
+  calculate(stat = "F")
+```
+
+###### Null distribution
+
+Under the null hypothesis, income level and life expectancy are independent. We generate the null distribution through 1,000 permutations, calculating the F-statistic each time.
+
+```{r}
+null_distribution3 <- null_hypothesis3 %>%
+   generate(reps = 1000, type = "permute") %>%
+   calculate(stat = "F")
+null_distribution3
+```
+
+```{r}
+hist(null_distribution3$stat)
+```
+
+The null distribution for Argentina is right-skewed, concentrated near zero under the assumption of independence. Meanwhile, the long right tail by the null distribution reflects the small between-group differences expected by chance. 
+
+###### Conclusion
+
+```{r}
+# Calculating p-value for Argentina
+null_distribution3%>% visualize()+ shade_p_value(obs_stat=observed_stat3, direction= "greater") + scale_x_log10()
+```
+
+At the 5% significance level, we compare the p-value to 0.05. As we can see, the red vertical line for our observed statistics stands way past the null distribution, thus making it possible to reject the null hypothesis. In other words, this means that there is a strong dependency between income level and life expectancy in Argentina.
+
+# Conclusion
+
+In the hypothesis testing of categorical variables, income level and fertility rate, bar plots were generated to illustrate the proportions in the descriptive statistics for the two variables. Besides, we used the Chi-square test of independence to assess the association between two categorical variables in each nation. In the first half of this study, we reject the null hypothesis in the three countries, Argentina, Chile, and Argentina. We concluded that income level and fertility rate have a strong dependent relationship.
+
+In the second half of the paper, we used one-way ANOVA tests and thus F-statistics as our test statistics to measure the variance ratio between income level groups and within groups, along with boxplots and histograms to describe the statistics and null distribution. With sufficient evidence to reject the hypothesis, we managed to conclude the strong dependency between income level and life expectancy in Argentina, Chile, and Uruguay.
+
+In summary, this study highlights how income inequality is closely linked to patterns in fertility rates and life expectancy across the three chosen Southern Cone countries. Beyond the statistical findings, these relationships also reflect the broader social and economic realities experienced by different groups in society. By conducting hypothesis testing, this research not only provides statistical insights into these socioeconomic dynamics but also lays a foundation for future studies to explore them more deeply in the context of policy-making to address social-level concerns. Therefore, such understanding may contribute to the development of more inclusive and effective policies that better respond to the needs of diverse communities.
+
+
+# References
+
+Simon, J. L. (1969). The effect of income on fertility. Population Studies, 23(3), 327–341. https://doi.org/10.1080/00324728.1969.10405289 
+
+Becquet, V., Sacco, N., & Pardo, I. (2022). Disparities in Gender Preference and Fertility: Southeast Asia and Latin America in a Comparative Perspective. Population Research and Policy Review. https://doi.org/10.1007/s11113-021-09692-1
+
+Preston, S. H. (1975). The changing relation between mortality and the level of economic development. Population Studies, 29(2), 231–248. https://doi.org/10.1080/00324728.1975.10410201
+
+
